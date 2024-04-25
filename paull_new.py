@@ -63,7 +63,7 @@ def search_row(paulls_matrix, symbol_b, grid_position):
 
 def get_individual_perm_routing(lines):
 	links = all_links()
-	debug = 1
+	debug = 0
 	max_flow = 0
 	flows_in_same_pod = []
 	flows_in_different_pod = []
@@ -91,8 +91,10 @@ def get_individual_perm_routing(lines):
 		column_utilization_matrix.fill(0)
 		num_unblocked = 0
 		num_blocked = 0
-		for (src, dest, src_rtr, dest_rtr) in values:
+		for (src, dest, phy_src_rtr, phy_dest_rtr) in values:
 			blocked = 1
+			src_rtr = phy_src_rtr - (key * (num_ports // 2))
+			dest_rtr = phy_dest_rtr - (key * (num_ports // 2))
 			for num, (i, j) in enumerate(zip(rows_utilization_matrix[src_rtr], column_utilization_matrix[dest_rtr])):
 				if i == 0 and j == 0:
 					rows_utilization_matrix[src_rtr][num] = 1
@@ -160,13 +162,12 @@ def get_individual_perm_routing(lines):
 				debug = 0
 		for i in rows_utilization_matrix:
 			print(np.count_nonzero(i=='%'))				
-		print(paulls_matrix)
-		print(rows_utilization_matrix)
-		print(column_utilization_matrix)
-		print(num_blocked)
-		print(num_unblocked)
-		break
-"""
+		print(f'Pauls Matrix in pod {key} is {paulls_matrix}')
+		print(f'Row Ulilization Matrix in pod {key} is {rows_utilization_matrix}')
+		print(f'Column Utilization Matrix in pod {key} is {column_utilization_matrix}')
+		print(f'Number of blocked flows in pod {key} is {num_blocked}')
+		print(f'Number of unblocked flows in pod {key} is {num_unblocked}')
+
 
 with open("jperm_0.txt", "r") as fp:
 	lines = fp.readlines()
@@ -243,5 +244,4 @@ for i in range(num_router_l0):
 				else:
 					used_symbol.append(s)
 	print("Column {} has symbols {}".format(i, used_symbol))
-'''		
-			
+'''			
