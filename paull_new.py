@@ -9,6 +9,9 @@ node_pod = {i: (i//(num_ports * num_ports// (2*2) )) for i in range(num_nodes)}
 
 node_l1_router = {i : (node_pod[i] * (num_ports // 2) + (i % (num_ports // 2))) for i in range(num_nodes)}
 
+flow_l1_router = []
+l1_router_load = [0] * num_router_l0
+
 def all_links():
 	links = {}
 	for i in range(num_router_l0):
@@ -144,104 +147,53 @@ def get_individual_perm_routing(lines):
 								print("Found start {}".format(start_grid)) 
 							break
 				grid_position = start_grid
-				grid_indices.append((grid_position, symbol_b))
+				grid_indices.append((grid_position, symbol_b, symbol_a))
 
 				while to_search != 0:
 					if count == 0:
 						grid_position, to_search = search_column(paulls_matrix, symbol_a, grid_position)
-						grid_indices.append((grid_position, symbol_a))
-						count += 1
+						if to_search:
+							grid_indices.append((grid_position, symbol_a, symbol_b))
+							count += 1
 					elif count == 1:
 						grid_position, to_search = search_row(paulls_matrix, symbol_b, grid_position)
-						grid_indices.append((grid_position, symbol_b))
-						count -= 1 
+						if to_search:
+							grid_indices.append((grid_position, symbol_b, symbol_a))
+							count -= 1 
 				if debug:
 					print("one complete")		
 				print(grid_indices)
 				num_blocked += 1
 				debug = 0
-		for i in rows_utilization_matrix:
-			print(np.count_nonzero(i=='%'))				
-		print(f'Pauls Matrix in pod {key} is {paulls_matrix}')
+				for (i, j), old_symbol, new_symbol in grid_indices:
+					print(f'Row {i} Column {j} Symbol {old_symbol}')
+					all_symbols = paulls_matrix[i][j].split('_')
+					all_symbols.remove(old_symbol)
+					all_symbols.append(new_symbol)
+					new_string = '_'.join(all_symbols)
+					paulls_matrix[i][j] = new_string
+				rows_utilization_matrix[src_rtr][int(symbol_a)] = 1
+				column_utilization_matrix[dest_rtr][int(symbol_b)] = 1
+				paulls_matrix[src_rtr][dest_rtr] = paulls_matrix[src_rtr][dest_rtr] + "_" + symbol_b
+		for (src, dest, phy_src_rtr, phy_dest_rtr) in values:
+				src_rtr = phy_src_rtr - (key * (num_ports // 2))
+				dest_rtr = phy_dest_rtr - (key * (num_ports // 2))
+				if '_' in paulls_matrix[src_rtr][dest_rtr]:
+					list_of_router = paulls_matrix[src_rtr][dest_rtr].split('_')
+					chosen_l1 = list_of_router.pop()
+					if chosen_l1 != '%':
+						chosen_l1 = int(chosen_l1) + (key * (num_ports // 2))
+						l1_router_load[chosen_l1] += 1
+					flow_l1_router.append((src, dest, phy_src_rtr, phy_dest_rtr, chosen_l1))
+				
+		print(f'Pauls Matrix in pod {key} is {paulls_matrix} transposed {paulls_matrix.transpose()}')
 		print(f'Row Ulilization Matrix in pod {key} is {rows_utilization_matrix}')
 		print(f'Column Utilization Matrix in pod {key} is {column_utilization_matrix}')
 		print(f'Number of blocked flows in pod {key} is {num_blocked}')
 		print(f'Number of unblocked flows in pod {key} is {num_unblocked}')
+		print(f'The flows are {flow_l1_router}')
 
 
 with open("jperm_0.txt", "r") as fp:
 	lines = fp.readlines()
 get_individual_perm_routing(lines)
-'''
-find_l1 = []
-same_l1_flow = 0
-for line in lines:
-	src = int(line.split(" ")[0].strip())
-	dest = int(line.split(" ")[-1].strip())
-	src_l1 = node_l1_router[src]
-	dest_l1 = node_l1_router[dest]
-	if src_l1 != dest_l1:
-		find_l1.append((src, dest, src_l1, dest_l1))
-	else:
-		same_l1_flow += 1
-
-
-paulls_matrix = np.empty(shape=(num_router_l0,num_router_l0), dtype='object')
-paulls_matrix.fill("%")
-rows_utilization_matrix = np.empty(shape=(num_router_l0, num_ports))
-column_utilization_matrix = np.empty(shape=(num_router_l0, num_ports))
-rows_utilization_matrix.fill(0)
-column_utilization_matrix.fill(0)
-
-num_unblocked = 0
-num_blocked = 0
-for (src, dest, src_l1, dest_l1) in find_l1:
-	blocked = 1
-	for num, (i, j) in enumerate(zip(rows_utilization_matrix[src_l1], column_utilization_matrix[dest_l1])):
-		if i == 0 and j == 0:
-			rows_utilization_matrix[src_l1][num] = 1
-			column_utilization_matrix[dest_l1][num] = 1
-			paulls_matrix[src_l1][dest_l1] = paulls_matrix[src_l1][dest_l1] + "_" + str(num)
-			blocked = 0
-			num_unblocked += 1
-			print("{} {} {}".format(src_l1, dest_l1, num))
-			break
-	if blocked == 1:
-		print("{} {} {}".format(src_l1, dest_l1, "blocked"))
-		num_blocked += 1
-		
-
-print(paulls_matrix)
-print(rows_utilization_matrix)
-print(column_utilization_matrix)
-print(num_blocked)
-print(num_unblocked)
-print(same_l1_flow)
-print("Check Paulls Matrix for repetation of symbol, if there is a repetation of symbol that means a link is shared")
-
-print("First check rowise in paul matrix")
-for i in range(num_router_l0):
-	used_symbol = []
-	for symbol in paulls_matrix[i]:
-		if "_" in symbol:
-			symbols_present = symbol.strip().split("_")
-			for s in symbols_present:
-				if s in used_symbol:
-					print("Row {} has repeated symbol {}".format(i, s))
-				else:
-					used_symbol.append(s)
-	print("Row {} has symbols {}".format(i, used_symbol))
-
-print("Second check columnise in paul matrix")
-for i in range(num_router_l0):
-	used_symbol = []
-	for symbol in paulls_matrix[:,i]:
-		if "_" in symbol:
-			symbols_present = symbol.strip().split("_")
-			for s in symbols_present:
-				if s in used_symbol:
-					print("Column {} has repeated symbol {}".format(i, s))
-				else:
-					used_symbol.append(s)
-	print("Column {} has symbols {}".format(i, used_symbol))
-'''			
