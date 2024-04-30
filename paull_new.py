@@ -6,18 +6,15 @@ import collections
 num_router_l0 = 64
 num_ports = 32
 num_pods = (num_router_l0 // (num_ports // 2))
-
 num_nodes = num_router_l0 * (num_ports // 2)
 node_l0_router = {i: (i//(num_ports // 2)) for i in range(num_nodes)}
 node_pod = {i: (i//(num_ports * num_ports// (2*2) )) for i in range(num_nodes)}
-
 node_l1_router = {i : (node_pod[i] * (num_ports // 2) + (i % (num_ports // 2))) for i in range(num_nodes)}
-
 flow_l1_router = []
 l1_router_load = [0] * num_router_l0
-
 all_upward_links = []
 all_downward_links = []
+
 def all_links():
 	links = {}
 	for i in range(num_router_l0):
@@ -86,7 +83,7 @@ def get_individual_perm_routing(lines):
 		else:
 			flows_in_different_pod.append((src, dest, node_l0_router[src], node_l0_router[dest], src_pod, dest_pod))
 	
-
+	# For flows in same pod
 	for key, values in same_flows_in_pods.items():
 		paulls_matrix = np.empty(shape=((num_ports // 2),(num_ports // 2)), dtype='object')
 		paulls_matrix.fill("%")
@@ -96,6 +93,7 @@ def get_individual_perm_routing(lines):
 		column_utilization_matrix.fill(0)
 		num_unblocked = 0
 		num_blocked = 0
+		# Allocate links for flows
 		for (src, dest, phy_src_rtr, phy_dest_rtr) in values:
 			blocked = 1
 			src_rtr = phy_src_rtr - (key * (num_ports // 2))
@@ -108,6 +106,7 @@ def get_individual_perm_routing(lines):
 					blocked = 0
 					num_unblocked += 1
 					break
+			# If flow is blocked
 			if blocked == 1:
 				symbol_a = -1
 				symbol_b = -1
@@ -145,7 +144,7 @@ def get_individual_perm_routing(lines):
 							count -= 1 
 				num_blocked += 1
 				debug = 0
-				
+				# Remove the grid
 				for (i, j), old_symbol, new_symbol in grid_indices:
 					all_symbols = paulls_matrix[i][j].split('_')
 					all_symbols.remove(old_symbol)
@@ -156,7 +155,7 @@ def get_individual_perm_routing(lines):
 				
 				rows_utilization_matrix.fill(0)
 				column_utilization_matrix.fill(0)
-				
+				# Update the utilization Matrix
 				for i in range(len(paulls_matrix)):
 					for j in range(len(paulls_matrix[i])):
 						if '_' in paulls_matrix[i][j]:
@@ -165,7 +164,7 @@ def get_individual_perm_routing(lines):
 								if a != '%':
 									rows_utilization_matrix[i][int(a)] = 1
 									column_utilization_matrix[j][int(a)] = 1
-
+		# Add flow table
 		upward_links_used = np.zeros(shape=(num_ports // 2, num_ports // 2))
 		downward_links_used = np.zeros(shape=(num_ports // 2, num_ports // 2))
 		for (src, dest, phy_src_rtr, phy_dest_rtr) in values:
@@ -188,14 +187,8 @@ def get_individual_perm_routing(lines):
 		#print(f'Number of blocked flows in pod {key} is {num_blocked}')
 		#print(f'Number of unblocked flows in pod {key} is {num_unblocked}')
 		#print(f'The flows are {flow_l1_router}')
-		print('......')
-		print(upward_links_used)
-		print(downward_links_used)
-	#print(links)
-	#print(flow_l1_router)
-	#for key, value in links.items():
-	#	if value == 2:
-	#		print(key)
+	
+	# For flow going inter pod
 	paulls_matrix = np.empty(shape=((num_router_l0),(num_router_l0)), dtype='object')
 	paulls_matrix.fill("%")
 	rows_utilization_matrix = np.empty(shape=((num_router_l0), (num_router_l0 // 2)))
@@ -232,7 +225,6 @@ def get_individual_perm_routing(lines):
 		src_rtr = src_l1
 		dest_rtr = dest_l1
 		for num, (i, j) in enumerate(zip(rows_utilization_matrix[src_rtr], column_utilization_matrix[dest_rtr])):
-			print(f'num is {num} i in {i} and j is {j}')
 			if i == 0 and j == 0:
 					rows_utilization_matrix[src_rtr][num] = 1
 					column_utilization_matrix[dest_rtr][num] = 1
@@ -313,9 +305,9 @@ def get_individual_perm_routing(lines):
 						downward_links_used[dest_rtr][chosen_l1] += 1
 						final_flow.append((src, dest, phy_src_rtr, phy_dest_rtr, src_l1, dest_l1, chosen_l1))
 	flow_l1_router.extend(final_flow)
-	print(upward_links_used.max())
-	print(downward_links_used.max())
+	return flow_l1_router
 
 with open("jperm_0.txt", "r") as fp:
 	lines = fp.readlines()
-get_individual_perm_routing(lines)
+flow_table = get_individual_perm_routing(lines)
+print('\n'.join(map(str,flow_table)))
