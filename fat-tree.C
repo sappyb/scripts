@@ -1212,7 +1212,87 @@ static void fattree_read_config(const char * anno, fattree_param *p){
           flow_path = schedule(elephants_outside, load_balance_type);
         }
         else if (initial_route == 2){
-          ********************************
+          flow_file[0] = '\0';
+            rc = configuration_get_value(&config, "PARAMS", "flow_file", anno, flow_file,
+                                        MAX_NAME_LENGTH);
+            if (flow_file[0] != '\0')
+            {
+              ifstream wf;
+              wf.open(flow_file);
+              if (!wf)
+              {
+                tw_error(TW_LOC, "flow file not found");
+                wf.clear();
+              }
+              else
+              {
+                string one_line;
+                while (getline(wf, one_line))
+                {
+                  istringstream st(one_line);
+                  string file_src;
+                  string file_dest;
+                  string switches;
+                  st >> file_src;
+                  st >> file_dest;
+                  unordered_map<string, unordered_map<string, vector<vector<string>>>>::const_iterator src_it = inital_flow_path.find(file_src);
+                  if (src_it != inital_flow_path.end())
+                  {
+                    unordered_map<string, vector<vector<string>>>::const_iterator dest_it = inital_flow_path[file_src].find(file_dest);
+                    if (dest_it != inital_flow_path[file_src].end())
+                    {
+                      vector<string> temp;
+                      while (st >> switches)
+                      {
+                        temp.push_back(switches);
+                      }
+                      inital_flow_path[file_src][file_dest].push_back(temp);
+                    }
+                    else{
+                      vector<string> temp;
+                      while (st >> switches)
+                      {
+                        temp.push_back(switches);
+                      }
+                      vector<vector<string>> outer_temp;
+                      outer_temp.push_back(temp);
+                      inital_flow_path[file_src].insert(make_pair(file_dest, outer_temp));
+                    }
+                  }
+                  else{
+                    vector<string> temp;
+                    while (st >> switches)
+                    {
+                      temp.push_back(switches);
+                    }
+                    vector<vector<string>> outer_temp;
+                    outer_temp.push_back(temp);
+                    unordered_map<string, vector<vector<string>>> inner;
+                    inner.insert(make_pair(file_dest, outer_temp));
+                    inital_flow_path.insert(make_pair(file_src, inner));
+                  }
+                }
+              }
+            }
+
+
+            /* Generate and update the flow path with index respective to the path index in SW_path*/
+            int path_index = -1;
+        /* Find the path index */
+        vector<string> path = inital_flow_path[src_term][dest_term];
+        vector<vector<string>> all_paths = sw_paths[src_sw][dest_sw];
+        for (int i = 0; i < all_paths.size(); i++)
+        {
+          if (path == all_paths[i])
+          {
+            path_index = i;
+            break;
+          }
+        }/* Record the path index */
+        if (src_sw != dest_sw)
+        {
+          flow_path[src_term][dest_term] = path_index;
+        }
         }
       }
     }
