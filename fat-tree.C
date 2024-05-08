@@ -1277,24 +1277,32 @@ static void fattree_read_config(const char * anno, fattree_param *p){
 
 
             /* Generate and update the flow path with index respective to the path index in SW_path*/
-            int path_index = -1;
-        /* Find the path index */
-        vector<string> path = inital_flow_path[src_term][dest_term];
-        vector<vector<string>> all_paths = sw_paths[src_sw][dest_sw];
-        for (int i = 0; i < all_paths.size(); i++)
-        {
-          if (path == all_paths[i])
-          {
-            path_index = i;
-            break;
-          }
-        }/* Record the path index */
-        if (src_sw != dest_sw)
-        {
-          flow_path[src_term][dest_term] = path_index;
-        }
-        }
-      }
+            for (auto it = inital_flow_path.begin(); it != inital_flow_path.end(); it++)
+            {
+              string src_term = it->first;
+              for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++)
+              {
+                string dest_term = it2->first;
+                string src_sw = term_sw_map[src_term];
+                string dest_sw = term_sw_map[dest_term];
+                int path_index = -1;
+                vector<string> path = inital_flow_path[src_term][dest_term];
+                vector<vector<string>> all_paths = sw_paths[src_sw][dest_sw];
+                for (int i = 0; i < all_paths.size(); i++)
+                {
+                  if (path == all_paths[i])
+                  {
+                    path_index = i;
+                    break;
+                  }
+                }
+                /* Record the path index */
+                if (src_sw != dest_sw)
+                {
+                  flow_path[src_term][dest_term] = path_index;
+                }
+              }
+            }
     }
   }
 
