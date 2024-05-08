@@ -712,21 +712,6 @@ void write_elephant_flows(vector<pair<string, string>> flows_taken, int filenum)
 
 ////////////////////////////////////////////////////////////////////////////
 
-/*static void dot_write_term2sw_link(int term_id, int rsw_lvl, int rsw_id,
-                                   int rsw_port, FILE *fout)
-{
-  if(!fout) return;
-  if(!dump_topo) return;
-
-  *//* add +1 to ports, since ibsim/opensm start with physical port number 1
-   * (port 0 is internal sw port)
-   */
-  //if(NULL != getenv("OSM_ROUTING"))
-  //   rsw_port++;
-
-  //fprintf(fout, "\t\"H_%d\" -> \"S_%d_%d\" [comment=\"P1->P%d\"];\n",
-  //      term_id, rsw_lvl, rsw_id, rsw_port);
-//}
 
 void post_switch_init(switch_state *s, tw_lp *lp)
 {
@@ -996,6 +981,120 @@ static void fattree_read_config(const char * anno, fattree_param *p){
   p->cn_delay = (1.0 / p->cn_bandwidth);
   p->head_delay = (1.0 / p->link_bandwidth);
   p->credit_delay = (1.0 / p->link_bandwidth) * 8; //assume 8 bytes packet
+
+
+  //// Read Path files //////////////////////////////////
+  /*
+  1. Read paths from external file
+  2. Read terminal leaf switch mapping from external file
+  */
+
+
+  /* Read Paths from external file */
+  path_file[0] = '\0';
+  rc = configuration_get_value(&config, "PARAMS", "path_file", anno, path_file,
+                               MAX_NAME_LENGTH);
+  if (path_file[0] != '\0')
+  {
+    ifstream wf;
+    wf.open(path_file);
+    if (!wf)
+    {
+      tw_error(TW_LOC, "path file not found");
+      wf.clear();
+    }
+    else
+    {
+      string one_line;
+      while (getline(wf, one_line))
+      {
+        istringstream st(one_line);
+        string file_src;
+        string file_dest;
+        string ports;
+        st >> file_src;
+        st >> file_dest;
+        unordered_map<string, unordered_map<string, vector<vector<string>>>>::const_iterator src_it = sw_paths.find(file_src);
+        if (src_it != sw_paths.end())
+        {
+          /*Ports table has the source*/
+          unordered_map<string, vector<vector<string>>>::const_iterator dest_it = sw_paths[file_src].find(file_dest);
+          if (dest_it != sw_paths[file_src].end())
+          {
+            /*Flow table has the destination*/
+            vector<string> temp;
+            while (st >> ports)
+            {
+              temp.push_back(ports);
+            }
+            sw_paths[file_src][file_dest].push_back(temp);
+            sw_path_taken[file_src][file_dest].push_back(0);
+          }
+          else
+          {
+            /*Flow table has the source but no destination*/
+            vector<string> temp;
+            while (st >> ports)
+            {
+              temp.push_back(ports);
+            }
+            vector<vector<string>> outer_temp;
+            outer_temp.push_back(temp);
+            sw_paths[file_src].insert(make_pair(file_dest, outer_temp));
+            vector<int> temp_load(1, 0);
+            sw_path_taken[file_src].insert(make_pair(file_dest, temp_load));
+          }
+        }
+        else
+        {
+          /*Flow table has no source and no destination. So add the new flow.*/
+          vector<string> temp;
+          while (st >> ports)
+          {
+            temp.push_back(ports);
+          }
+          vector<vector<string>> outer_temp;
+          outer_temp.push_back(temp);
+          unordered_map<string, vector<vector<string>>> inner;
+          inner.insert(make_pair(file_dest, outer_temp));
+          sw_paths.insert(make_pair(file_src, inner));
+          vector<int> temp_load(1, 0);
+          unordered_map<string, vector<int>> inner_load;
+          inner_load.insert(make_pair(file_dest, temp_load));
+          sw_path_taken.insert(make_pair(file_src, inner_load));
+        }
+      }
+    }
+  }
+
+  /* Read Terminal Switch Mapping from external file */
+  term_sw_file[0] = '\0';
+  rc = configuration_get_value(&config, "PARAMS", "term_sw_file", anno, term_sw_file,
+                               MAX_NAME_LENGTH);
+  if (term_sw_file[0] != '\0')
+  {
+    ifstream wf;
+    wf.open(term_sw_file);
+    if (!wf)
+    {
+      tw_error(TW_LOC, "port file not found");
+      wf.clear();
+    }
+    else
+    {
+      string one_line;
+      while (getline(wf, one_line))
+      {
+        istringstream st(one_line);
+        string term;
+        string swt;
+        st >> term;
+        st >> swt;
+        term_sw_map.insert(make_pair(term, swt));
+      }
+    }
+  }
+
 }
 
 static void fattree_configure(){
