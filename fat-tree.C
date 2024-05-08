@@ -987,6 +987,7 @@ static void fattree_read_config(const char * anno, fattree_param *p){
   /*
   1. Read paths from external file
   2. Read terminal leaf switch mapping from external file
+  3. Read switch ports from external file
   */
 
 
@@ -1091,6 +1092,128 @@ static void fattree_read_config(const char * anno, fattree_param *p){
         st >> term;
         st >> swt;
         term_sw_map.insert(make_pair(term, swt));
+      }
+    }
+  }
+
+  /* Read Switch ports from external file */
+  port_file[0] = '\0';
+  rc = configuration_get_value(&config, "PARAMS", "port_file", anno, port_file,
+                               MAX_NAME_LENGTH);
+  if (port_file[0] != '\0')
+  {
+    ifstream wf;
+    wf.open(port_file);
+    if (!wf)
+    {
+      tw_error(TW_LOC, "port file not found");
+      wf.clear();
+    }
+    else
+    {
+      string one_line;
+      while (getline(wf, one_line))
+      {
+        istringstream st(one_line);
+        string file_src;
+        string file_dest;
+        int ports;
+        st >> file_src;
+        st >> file_dest;
+        unordered_map<string, unordered_map<string, vector<int>>>::const_iterator src_it = sw_ports.find(file_src);
+        if (src_it != sw_ports.end())
+        {
+          /*Ports table has the source*/
+          unordered_map<string, vector<int>>::const_iterator dest_it = sw_ports[file_src].find(file_dest);
+          if (dest_it != sw_ports[file_src].end())
+          {
+            /*Flow table has the destination*/
+            while (st >> ports)
+            {
+              sw_ports[file_src][file_dest].push_back(ports);
+            }
+          }
+          else
+          {
+            /*Flow table has the source but no destination*/
+            vector<int> temp;
+            while (st >> ports)
+            {
+              temp.push_back(ports);
+            }
+            sw_ports[file_src].insert(make_pair(file_dest, temp));
+          }
+        }
+        else
+        {
+          /*Flow table has no source and no destination. So add the new flow.*/
+          vector<int> temp;
+          while (st >> ports)
+          {
+            temp.push_back(ports);
+          }
+          unordered_map<string, vector<int>> inner;
+          inner.insert(make_pair(file_dest, temp));
+          sw_ports.insert(make_pair(file_src, inner));
+        }
+      }
+    }
+  }
+
+  configuration_get_value_int(&config, "PARAMS", "flow_detect", anno, &flow_detect);
+  if (!g_tw_mynode)
+    printf("Flow detection method is %d\n", flow_detect);
+  if (flow_detect == 2 || flow_detect == 3 || flow_detect == 4)
+  {
+    /*  0 - No info  threshold
+        1 - No info ML
+        2 - Partial info Thresshold
+        3 - Partial info ML
+        4 - Complete User info
+        6 - Static
+    */
+
+    /* Read elephants outside */
+    elephants_out[0] = '\0';
+    rc = configuration_get_value(&config, "PARAMS", "elephants_out", anno, elephants_out,
+                                 MAX_NAME_LENGTH);
+
+    if (elephants_out[0] != '\0')
+    {
+      ifstream wf;
+      wf.open(elephants_out);
+      if (!wf)
+      {
+        tw_error(TW_LOC, ":");
+        wf.clear();
+      }
+      else
+      {
+        string one_line;
+        while (getline(wf, one_line))
+        {
+          istringstream st(one_line);
+          string file_src;
+          string file_dest;
+          int ports;
+          st >> file_src;
+          st >> file_dest;
+          string src = "H_" + file_src;
+          string dest = "H_" + file_dest;
+          elephants_outside.push_back(make_pair(src, dest));
+        }
+        /* Generate routing tables for the elphant flows read outside */
+        configuration_get_value_int(&config, "PARAMS", "initial_route", anno, &initial_route);
+        if (!g_tw_mynode)
+          printf("Intial routing table genertion method is %d\n", initial_route);
+        if (initial_route == 1)
+        {
+          int load_balance_type = 0;
+          flow_path = schedule(elephants_outside, load_balance_type);
+        }
+        else if (initial_route == 2){
+          ********************************
+        }
       }
     }
   }
